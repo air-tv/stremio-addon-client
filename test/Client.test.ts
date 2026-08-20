@@ -1,7 +1,7 @@
 import { MemoryCacheStore } from "@get-air/cache"
 import { FunctionHttpTransport } from "@get-air/http"
 import { Effect } from "effect"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import {
   StremioAddon,
   isStremioAddonError,
@@ -89,6 +89,17 @@ describe("Stremio addon client", () => {
     expect(resourceRequests).toBe(2)
   })
 
+  it("skips cache-key hashing when caching is disabled", async () => {
+    const digest = vi.spyOn(globalThis.crypto.subtle, "digest").mockRejectedValue(new Error("unused"))
+    const transport = FunctionHttpTransport.from(async () => json(manifest))
+    try {
+      expect((await StremioAddon.connect("https://addon.example/manifest.json", { transport })).manifest.id)
+        .toBe(manifest.id)
+    } finally {
+      digest.mockRestore()
+    }
+  })
+
   it("checks manifest capabilities before making a request", async () => {
     let requests = 0
     const transport = FunctionHttpTransport.from(async () => {
@@ -104,18 +115,22 @@ describe("Stremio addon client", () => {
   })
 
   it("rejects unsafe URLs and malformed resource payloads with plain tagged errors", async () => {
+    const transport = FunctionHttpTransport.from(async (request) =>
+      request.url.endsWith("/manifest.json")
+        ? json(manifest)
+        : json({ streams: [{ name: "not playable" }] }),
+    )
     await expect(StremioAddon.connect("http://addon.example/manifest.json")).rejects.toSatisfy(
       isStremioAddonError,
     )
     await expect(StremioAddon.connect("https://127.0.0.1/manifest.json")).rejects.toSatisfy(
       isStremioAddonError,
     )
-
-    const transport = FunctionHttpTransport.from(async (request) =>
-      request.url.endsWith("/manifest.json")
-        ? json(manifest)
-        : json({ streams: [{ name: "not playable" }] }),
+    await expect(StremioAddon.connect("https://[::ffff:7f00:1]/manifest.json")).rejects.toSatisfy(
+      isStremioAddonError,
     )
+    await expect(StremioAddon.connect("https://[::ffff:808:808]/manifest.json", { transport }))
+      .resolves.toBeDefined()
     const addon = await StremioAddon.connect("https://addon.example/manifest.json", { transport })
     await expect(addon.streams("movie", "tt1254207")).rejects.toMatchObject({
       _tag: "AddonResponseValidationError",

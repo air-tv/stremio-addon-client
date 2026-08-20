@@ -30,6 +30,13 @@ export const CatalogDefinition = Schema.Struct({
   extra: Schema.optional(Schema.Array(CatalogExtraDefinition)),
 })
 
+export const AddonBehaviorHints = Schema.Struct({
+  adult: Schema.optional(Schema.Boolean),
+  p2p: Schema.optional(Schema.Boolean),
+  configurable: Schema.optional(Schema.Boolean),
+  configurationRequired: Schema.optional(Schema.Boolean),
+})
+
 export const AddonManifest = Schema.Struct({
   id: NonEmpty,
   version: NonEmpty,
@@ -42,12 +49,7 @@ export const AddonManifest = Schema.Struct({
   logo: Schema.optional(Schema.String),
   background: Schema.optional(Schema.String),
   contactEmail: Schema.optional(Schema.String),
-  behaviorHints: Schema.optional(Schema.Struct({
-    adult: Schema.optional(Schema.Boolean),
-    p2p: Schema.optional(Schema.Boolean),
-    configurable: Schema.optional(Schema.Boolean),
-    configurationRequired: Schema.optional(Schema.Boolean),
-  })),
+  behaviorHints: Schema.optional(AddonBehaviorHints),
 })
 
 export const Subtitle = Schema.Struct({
@@ -56,17 +58,19 @@ export const Subtitle = Schema.Struct({
   lang: NonEmpty,
 })
 
-const StreamBehaviorHints = Schema.Struct({
+export const StreamProxyHeaders = Schema.Struct({
+  request: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
+  response: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
+})
+
+export const StreamBehaviorHints = Schema.Struct({
   bingeGroup: Schema.optional(Schema.String),
   videoHash: Schema.optional(Schema.String),
   videoSize: Schema.optional(Schema.Number.pipe(Schema.nonNegative())),
   filename: Schema.optional(Schema.String),
   notWebReady: Schema.optional(Schema.Boolean),
   countryWhitelist: Schema.optional(StringArray),
-  proxyHeaders: Schema.optional(Schema.Struct({
-    request: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
-    response: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
-  })),
+  proxyHeaders: Schema.optional(StreamProxyHeaders),
 })
 
 export const Stream = Schema.Struct({
@@ -92,8 +96,8 @@ export const Stream = Schema.Struct({
   ),
 )
 
-const MetaLink = Schema.Struct({ name: NonEmpty, category: NonEmpty, url: NonEmpty })
-const Trailer = Schema.Struct({ source: NonEmpty, type: NonEmpty })
+export const MetaLink = Schema.Struct({ name: NonEmpty, category: NonEmpty, url: NonEmpty })
+export const Trailer = Schema.Struct({ source: NonEmpty, type: NonEmpty })
 
 const MetaFields = {
   id: NonEmpty,
@@ -114,7 +118,7 @@ const MetaFields = {
 
 export const MetaPreview = Schema.Struct(MetaFields)
 
-const Video = Schema.Struct({
+export const Video = Schema.Struct({
   id: NonEmpty,
   title: NonEmpty,
   released: Schema.optional(Schema.String),
@@ -142,11 +146,13 @@ export const MetaResponse = Schema.Struct({ ...CacheHints, meta: Meta })
 export const StreamResponse = Schema.Struct({ ...CacheHints, streams: Schema.Array(Stream) })
 export const SubtitlesResponse = Schema.Struct({ ...CacheHints, subtitles: Schema.Array(Subtitle) })
 
+export const AddonCatalogItem = Schema.Struct({
+  transportName: Schema.optional(Schema.String),
+  transportUrl: NonEmpty,
+  manifest: AddonManifest,
+})
+
 export const AddonCatalogResponse = Schema.Struct({
   ...CacheHints,
-  addons: Schema.Array(Schema.Struct({
-    transportName: Schema.optional(Schema.String),
-    transportUrl: NonEmpty,
-    manifest: AddonManifest,
-  })),
+  addons: Schema.Array(AddonCatalogItem),
 })

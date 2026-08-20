@@ -34,9 +34,8 @@ export const isStremioAddonError = (value: unknown): value is StremioAddonError 
   value instanceof Error && "_tag" in value && typeof value._tag === "string"
 
 const publicError = (failure: AddonClientError): StremioAddonError => {
-  const error = new Error(failure.message) as StremioAddonError
+  const error = Object.assign(new Error(failure.message), failure)
   error.name = failure._tag
-  Object.assign(error, failure)
   return error
 }
 

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   publish:
-    if: github.repository == 'get-air/stremio-addon-client'
+    if: github.repository == 'get-air/stremio-addon-client' && github.event.release.prerelease == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -23,6 +23,6 @@ jobs:
       - run: npm install --global npm@11
       - run: pnpm install --frozen-lockfile
       - name: Verify release tag
-        run: test "$GITHUB_REF_NAME" = "v$(node --print \"require('./package.json').version\")"
+        run: node -e "const v=require('./package.json').version; if(v.includes('-')||process.env.GITHUB_REF_NAME!=='v'+v) process.exit(1)"
       - run: pnpm run ci
       - run: npm publish --access public --provenance

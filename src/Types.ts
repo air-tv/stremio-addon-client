@@ -1,136 +1,24 @@
 import type { CacheStore } from "@get-air/cache"
 import type { HttpTransport } from "@get-air/http"
+import type { Schema } from "effect"
+import type * as Schemas from "./Schemas.js"
 
 export type AddonResourceName = "catalog" | "meta" | "stream" | "subtitles" | "addon_catalog"
-
-export interface ManifestResourceDefinition {
-  readonly name: string
-  readonly types: ReadonlyArray<string>
-  readonly idPrefixes?: ReadonlyArray<string>
-}
-
-export type ManifestResource = string | ManifestResourceDefinition
-
-export interface CatalogExtraDefinition {
-  readonly name: string
-  readonly isRequired?: boolean
-  readonly options?: ReadonlyArray<string>
-  readonly optionsLimit?: number
-}
-
-export interface CatalogDefinition {
-  readonly type: string
-  readonly id: string
-  readonly name: string
-  readonly extra?: ReadonlyArray<CatalogExtraDefinition>
-}
-
-export interface AddonBehaviorHints {
-  readonly adult?: boolean
-  readonly p2p?: boolean
-  readonly configurable?: boolean
-  readonly configurationRequired?: boolean
-}
-
-export interface AddonManifest {
-  readonly id: string
-  readonly version: string
-  readonly name: string
-  readonly description: string
-  readonly resources: ReadonlyArray<ManifestResource>
-  readonly types: ReadonlyArray<string>
-  readonly catalogs: ReadonlyArray<CatalogDefinition>
-  readonly idPrefixes?: ReadonlyArray<string>
-  readonly logo?: string
-  readonly background?: string
-  readonly contactEmail?: string
-  readonly behaviorHints?: AddonBehaviorHints
-}
-
-export interface MetaLink {
-  readonly name: string
-  readonly category: string
-  readonly url: string
-}
-
-export interface Trailer {
-  readonly source: string
-  readonly type: string
-}
-
-export interface StreamProxyHeaders {
-  readonly request?: Readonly<Record<string, string>>
-  readonly response?: Readonly<Record<string, string>>
-}
-
-export interface StreamBehaviorHints {
-  readonly bingeGroup?: string
-  readonly videoHash?: string
-  readonly videoSize?: number
-  readonly filename?: string
-  readonly notWebReady?: boolean
-  readonly countryWhitelist?: ReadonlyArray<string>
-  readonly proxyHeaders?: StreamProxyHeaders
-}
-
-export interface Subtitle {
-  readonly id: string
-  readonly url: string
-  readonly lang: string
-}
-
-export interface Stream {
-  readonly url?: string
-  readonly ytId?: string
-  readonly infoHash?: string
-  readonly fileIdx?: number
-  readonly externalUrl?: string
-  readonly name?: string
-  readonly title?: string
-  readonly description?: string
-  readonly sources?: ReadonlyArray<string>
-  readonly subtitles?: ReadonlyArray<Subtitle>
-  readonly behaviorHints?: StreamBehaviorHints
-}
-
-export interface Video {
-  readonly id: string
-  readonly title: string
-  readonly released?: string
-  readonly thumbnail?: string
-  readonly season?: number
-  readonly episode?: number
-  readonly overview?: string
-  readonly available?: boolean
-  readonly streams?: ReadonlyArray<Stream>
-}
-
-export interface MetaPreview {
-  readonly id: string
-  readonly type: string
-  readonly name: string
-  readonly poster?: string
-  readonly posterShape?: "square" | "poster" | "landscape"
-  readonly background?: string
-  readonly description?: string
-  readonly releaseInfo?: string
-  readonly imdbRating?: string | number
-  readonly genres?: ReadonlyArray<string>
-  readonly director?: ReadonlyArray<string>
-  readonly cast?: ReadonlyArray<string>
-  readonly links?: ReadonlyArray<MetaLink>
-  readonly trailers?: ReadonlyArray<Trailer>
-}
-
-export interface Meta extends MetaPreview {
-  readonly logo?: string
-  readonly released?: string
-  readonly runtime?: string
-  readonly language?: string
-  readonly country?: string
-  readonly website?: string
-  readonly videos?: ReadonlyArray<Video>
-}
+export type ManifestResourceDefinition = Schema.Schema.Type<typeof Schemas.ManifestResourceDefinition>
+export type ManifestResource = Schema.Schema.Type<typeof Schemas.ManifestResource>
+export type CatalogExtraDefinition = Schema.Schema.Type<typeof Schemas.CatalogExtraDefinition>
+export type CatalogDefinition = Schema.Schema.Type<typeof Schemas.CatalogDefinition>
+export type AddonBehaviorHints = Schema.Schema.Type<typeof Schemas.AddonBehaviorHints>
+export type AddonManifest = Schema.Schema.Type<typeof Schemas.AddonManifest>
+export type MetaLink = Schema.Schema.Type<typeof Schemas.MetaLink>
+export type Trailer = Schema.Schema.Type<typeof Schemas.Trailer>
+export type StreamProxyHeaders = Schema.Schema.Type<typeof Schemas.StreamProxyHeaders>
+export type StreamBehaviorHints = Schema.Schema.Type<typeof Schemas.StreamBehaviorHints>
+export type Subtitle = Schema.Schema.Type<typeof Schemas.Subtitle>
+export type Stream = Schema.Schema.Type<typeof Schemas.Stream>
+export type Video = Schema.Schema.Type<typeof Schemas.Video>
+export type MetaPreview = Schema.Schema.Type<typeof Schemas.MetaPreview>
+export type Meta = Schema.Schema.Type<typeof Schemas.Meta>
 
 export interface CacheHints {
   readonly cacheMaxAge?: number
@@ -138,31 +26,12 @@ export interface CacheHints {
   readonly staleError?: number
 }
 
-export interface CatalogResponse extends CacheHints {
-  readonly metas: ReadonlyArray<MetaPreview>
-}
-
-export interface MetaResponse extends CacheHints {
-  readonly meta: Meta
-}
-
-export interface StreamResponse extends CacheHints {
-  readonly streams: ReadonlyArray<Stream>
-}
-
-export interface SubtitlesResponse extends CacheHints {
-  readonly subtitles: ReadonlyArray<Subtitle>
-}
-
-export interface AddonCatalogItem {
-  readonly transportName?: string
-  readonly transportUrl: string
-  readonly manifest: AddonManifest
-}
-
-export interface AddonCatalogResponse extends CacheHints {
-  readonly addons: ReadonlyArray<AddonCatalogItem>
-}
+export type CatalogResponse = Schema.Schema.Type<typeof Schemas.CatalogResponse>
+export type MetaResponse = Schema.Schema.Type<typeof Schemas.MetaResponse>
+export type StreamResponse = Schema.Schema.Type<typeof Schemas.StreamResponse>
+export type SubtitlesResponse = Schema.Schema.Type<typeof Schemas.SubtitlesResponse>
+export type AddonCatalogItem = Schema.Schema.Type<typeof Schemas.AddonCatalogItem>
+export type AddonCatalogResponse = Schema.Schema.Type<typeof Schemas.AddonCatalogResponse>
 
 export interface AddonResourceResponseMap {
   readonly catalog: CatalogResponse
@@ -173,7 +42,6 @@ export interface AddonResourceResponseMap {
 }
 
 export type KnownAddonResource = keyof AddonResourceResponseMap
-
 export type AddonExtraValue = string | number | boolean | ReadonlyArray<string | number | boolean>
 export type AddonExtra = Readonly<Record<string, AddonExtraValue | undefined>>
 

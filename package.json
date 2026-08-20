@@ -19,8 +19,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check": "tsc -p tsconfig.json --noEmit",
-    "ci": "pnpm check && pnpm test && pnpm build && npm pack --dry-run --ignore-scripts",
+    "check": "effect-language-service diagnostics --project tsconfig.json --strict --format text && tsc -p tsconfig.json --noEmit",
+    "ci": "pnpm check && pnpm test && pnpm build && env -u npm_config_manage_package_manager_versions npm pack --dry-run --ignore-scripts",
     "ci:act": "act push --job ci",
     "prepack": "pnpm build",
     "test": "vitest run"
