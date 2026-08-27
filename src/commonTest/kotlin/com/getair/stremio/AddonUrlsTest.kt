@@ -76,4 +76,18 @@ class AddonUrlsTest {
         assertTrue(AddonUrls.isResourceSupported(manifest, "stream", "movie", "tt1254207"))
         assertFalse(AddonUrls.isResourceSupported(manifest, "stream", "movie", "kitsu:1"))
     }
+
+    @Test
+    fun resolvesAndRevalidatesRelativeRedirects() {
+        assertEquals(
+            "https://addon.example/addons/manifest.json",
+            AddonUrls.resolveRedirect(
+                "https://addon.example/base/manifest.json",
+                "../../addons/manifest.json#ignored",
+            ),
+        )
+        assertFailsWith<InvalidAddonUrlException> {
+            AddonUrls.resolveRedirect("https://addon.example/manifest.json", "http://localhost/result.json")
+        }
+    }
 }

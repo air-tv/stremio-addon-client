@@ -55,13 +55,17 @@ data class Subtitle(
     val id: String = "default",
     val url: String,
     val lang: String,
-)
+) {
+    override fun toString(): String = "Subtitle(id=$id, url=<redacted>, lang=$lang)"
+}
 
 @Serializable
 data class StreamProxyHeaders(
     val request: Map<String, String> = emptyMap(),
     val response: Map<String, String> = emptyMap(),
-)
+) {
+    override fun toString(): String = "StreamProxyHeaders(request=<redacted>, response=<redacted>)"
+}
 
 @Serializable
 data class StreamBehaviorHints(
@@ -94,6 +98,11 @@ data class Stream(
         }
         require(fileIdx == null || fileIdx >= 0) { "fileIdx must be non-negative" }
     }
+
+    override fun toString(): String =
+        "Stream(url=<redacted>, ytId=<redacted>, infoHash=<redacted>, fileIdx=$fileIdx, " +
+            "externalUrl=<redacted>, name=$name, title=$title, description=$description, " +
+            "sources=<redacted>, subtitles=$subtitles, behaviorHints=$behaviorHints)"
 }
 
 @Serializable

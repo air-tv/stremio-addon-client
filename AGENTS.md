@@ -10,3 +10,4 @@
 - Use immutable serializable models and validate normalized values at protocol boundaries.
 - JDK 17 is canonical. Run `./gradlew jvmTest` for fast checks and the relevant host target tests before committing.
 - GitHub Actions owns CI and release publishing. Never put repository or package tokens in the worktree.
+- Live integration is opt-in through `scripts/test-live-integration.sh` and `~/.config/air-tv/integration.env`. Redirects must be manually bounded and revalidated; cross-origin configured headers are dropped.

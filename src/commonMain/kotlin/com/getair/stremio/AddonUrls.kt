@@ -19,7 +19,34 @@ data class AddonResourceRequest(
 class InvalidAddonUrlException(message: String) : IllegalArgumentException(message)
 
 object AddonUrls {
-    fun normalizeManifestUrl(input: String, options: AddonUrlOptions = AddonUrlOptions()): String {
+    fun normalizeManifestUrl(input: String, options: AddonUrlOptions = AddonUrlOptions()): String =
+        normalize(input, options, requireManifest = true)
+
+    fun normalizeResourceUrl(input: String, options: AddonUrlOptions = AddonUrlOptions()): String =
+        normalize(input, options, requireManifest = false)
+
+    fun resolveRedirect(
+        baseUrl: String,
+        location: String,
+        options: AddonUrlOptions = AddonUrlOptions(),
+    ): String {
+        val base = parse(baseUrl)
+        val raw = location.trim()
+        val absolute = when {
+            URL_PATTERN.matches(raw) -> raw
+            raw.startsWith("//") -> "${base.scheme}:$raw"
+            raw.startsWith('/') -> "${base.origin()}$raw"
+            else -> {
+                val directory = base.path.substringBeforeLast('/', missingDelimiterValue = "")
+                "${base.origin()}${normalizePath("$directory/$raw")}"
+            }
+        }
+        return normalizeResourceUrl(absolute, options)
+    }
+
+    fun sameOrigin(left: String, right: String): Boolean = parse(left).origin() == parse(right).origin()
+
+    private fun normalize(input: String, options: AddonUrlOptions, requireManifest: Boolean): String {
         val url = parse(input)
         val scheme = if (url.scheme == "stremio") "https" else url.scheme
         requireAllowed(scheme == "https" || (scheme == "http" && options.allowHttp)) {
@@ -30,7 +57,7 @@ object AddonUrls {
             "Private-network addon URLs require allowPrivateNetwork"
         }
 
-        val path = if (url.path.endsWith("/manifest.json")) {
+        val path = if (!requireManifest || url.path.endsWith("/manifest.json")) {
             url.path
         } else {
             "${url.path.trimEnd('/')}/manifest.json"
@@ -107,6 +134,22 @@ object AddonUrls {
         val port = authority.substring(colon + 1).toIntOrNull()
         requireAllowed(port != null) { "Invalid addon URL port" }
         return authority.substring(0, colon) to port
+    }
+
+    private fun normalizePath(pathWithQuery: String): String {
+        val fragmentless = pathWithQuery.substringBefore('#')
+        val queryIndex = fragmentless.indexOf('?')
+        val path = if (queryIndex < 0) fragmentless else fragmentless.substring(0, queryIndex)
+        val query = if (queryIndex < 0) "" else fragmentless.substring(queryIndex)
+        val segments = mutableListOf<String>()
+        path.split('/').forEach { segment ->
+            when (segment) {
+                "", "." -> Unit
+                ".." -> if (segments.isNotEmpty()) segments.removeAt(segments.lastIndex)
+                else -> segments += segment
+            }
+        }
+        return "/${segments.joinToString("/")}$query"
     }
 
     private fun isPrivateHostname(hostname: String): Boolean {

@@ -8,6 +8,16 @@
 > Release tags publish Maven artifacts to GitHub Packages; no local publishing
 > token belongs in this repository.
 
+The Kotlin slice now includes URL/private-network policy, capability checks,
+tolerant manifest/resource normalization, bounded Ktor transport, and a suspend
+client. Normal tests use fictional addon responses. An opt-in local check loads
+the configured metadata, stream, and subtitle addons without printing URLs or
+response data:
+
+```sh
+./scripts/test-live-integration.sh
+```
+
 [![CI](https://github.com/get-air/stremio-addon-client/actions/workflows/ci.yml/badge.svg)](https://github.com/get-air/stremio-addon-client/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@get-air/stremio-addon-client.svg)](https://www.npmjs.com/package/@get-air/stremio-addon-client)
 
