@@ -88,6 +88,32 @@ The consuming Tauri app must grant HTTP capabilities for the addon origins it al
 
 ## Optional cache
 
+Kotlin callers inject the tiny platform-neutral `AddonResponseCache` contract.
+The included memory implementation is useful for app sessions; production apps
+can back the same interface with their local database:
+
+```kotlin
+val addon = connectStremioAddon(
+    manifestUrl,
+    transport,
+    StremioClientOptions(responseCache = MemoryAddonResponseCache()),
+)
+
+val freshStreams = addon.streams(
+    "movie",
+    "tt1254207",
+    AddonRequestOptions(bypassCache = true),
+)
+```
+
+Only successfully normalized resource responses are cached. HTTP `max-age`
+takes precedence over the protocol response's `cacheMaxAge`, then the configured
+five-minute default is used. `no-store`, `private`, and non-positive TTLs prevent
+storage. Cache failures are fail-open, manifests remain uncached, and SHA-256
+keys do not expose configured addon URLs or path credentials.
+
+The original TypeScript client accepts any `@get-air/cache` `CacheStore`:
+
 Pass any `@get-air/cache` `CacheStore`. Only validated HTTP response bodies are cached; addon registrations and configuration are never stored. Cache failures are fail-open and can be observed with `onCacheError`.
 
 ```ts

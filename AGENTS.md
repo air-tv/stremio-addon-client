@@ -6,7 +6,7 @@
 - Public async APIs are suspend functions. Do not add callback, Promise, Effect, blocking, or platform-specific duplicate façades.
 - Keep platform types out of `commonMain`. Use small transport/cache interfaces and constructor injection; no DI framework.
 - Treat addon URLs and responses as untrusted. Preserve URL policy, timeout, response-size, status, JSON, schema, redirect, and capability checks.
-- Cache failures remain fail-open. Never place raw configured addon URLs in cache keys or error text.
+- Cache failures remain fail-open. Cache only validated resource payloads, obey HTTP/protocol TTLs and private/no-store, and never place raw configured addon URLs in cache keys or error text.
 - Use immutable serializable models and validate normalized values at protocol boundaries.
 - JDK 17 is canonical. Run `./gradlew jvmTest` for fast checks and the relevant host target tests before committing.
 - GitHub Actions owns CI and release publishing. Never put repository or package tokens in the worktree.

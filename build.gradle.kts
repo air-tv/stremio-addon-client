@@ -41,6 +41,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
             api(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
         }
