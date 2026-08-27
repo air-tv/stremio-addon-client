@@ -56,4 +56,25 @@ class StremioJsonTest {
             StremioJson.streams("""{"streams":[{"title":"broken"}]}""")
         }
     }
+
+    @Test
+    fun normalizesAddonCatalogWithoutExposingTransportUrls() {
+        val response = StremioJson.addonCatalog(
+            """{
+              "addons":[{
+                "transportName":"http",
+                "transportUrl":"https://catalog-entry.invalid/manifest.json",
+                "manifest":{
+                  "id":"org.catalog.entry","version":"1.0.0","name":"Catalog entry",
+                  "resources":["stream"],"types":["movie"]
+                }
+              }],
+              "cacheMaxAge":120
+            }""",
+        )
+
+        assertEquals("org.catalog.entry", response.addons.single().manifest.id)
+        assertEquals(120L, response.cacheMaxAge)
+        assertFalse("catalog-entry.invalid" in response.addons.single().toString())
+    }
 }

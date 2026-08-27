@@ -1,6 +1,7 @@
 package com.getair.stremio
 
 import com.getair.stremio.model.AddonManifest
+import com.getair.stremio.model.AddonCatalogResponse
 import com.getair.stremio.model.CatalogResponse
 import com.getair.stremio.model.MetaResponse
 import com.getair.stremio.model.StreamResponse
@@ -38,4 +39,11 @@ interface StremioAddonClient {
         extra: Map<String, List<String>> = emptyMap(),
         options: AddonRequestOptions = AddonRequestOptions(),
     ): SubtitlesResponse
+
+    suspend fun addonCatalog(
+        type: String,
+        id: String,
+        extra: Map<String, List<String>> = emptyMap(),
+        options: AddonRequestOptions = AddonRequestOptions(),
+    ): AddonCatalogResponse
 }

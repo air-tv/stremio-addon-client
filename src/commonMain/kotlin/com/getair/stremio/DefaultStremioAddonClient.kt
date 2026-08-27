@@ -1,6 +1,7 @@
 package com.getair.stremio
 
 import com.getair.stremio.model.AddonManifest
+import com.getair.stremio.model.AddonCatalogResponse
 import com.getair.stremio.model.CatalogResponse
 import com.getair.stremio.model.MetaResponse
 import com.getair.stremio.model.StreamResponse
@@ -75,6 +76,16 @@ private class DefaultStremioAddonClient(
     ): SubtitlesResponse {
         requireSupported("subtitles", type, id)
         return request("subtitles", type, id, extra, options, StremioJson::subtitles) { it.cacheMaxAge }
+    }
+
+    override suspend fun addonCatalog(
+        type: String,
+        id: String,
+        extra: Map<String, List<String>>,
+        options: AddonRequestOptions,
+    ): AddonCatalogResponse {
+        requireSupported("addon_catalog", type, id)
+        return request("addon_catalog", type, id, extra, options, StremioJson::addonCatalog) { it.cacheMaxAge }
     }
 
     private suspend fun <T> request(

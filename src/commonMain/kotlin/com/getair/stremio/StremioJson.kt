@@ -1,6 +1,8 @@
 package com.getair.stremio
 
 import com.getair.stremio.model.AddonBehaviorHints
+import com.getair.stremio.model.AddonCatalogItem
+import com.getair.stremio.model.AddonCatalogResponse
 import com.getair.stremio.model.AddonManifest
 import com.getair.stremio.model.CatalogDefinition
 import com.getair.stremio.model.CatalogExtraDefinition
@@ -36,20 +38,24 @@ object StremioJson {
 
     fun manifest(input: String): AddonManifest {
         val root = parse(input, "manifest").record("manifest")
-        val resources = root["resources"].array("manifest resources").map { resource ->
-            when (resource) {
-                is JsonPrimitive -> ManifestResource(resource.requiredString("resource name"))
+        return manifest(root, "manifest")
+    }
+
+    private fun manifest(root: JsonObject, resource: String): AddonManifest {
+        val resources = root["resources"].array("manifest resources").map { manifestResource ->
+            when (manifestResource) {
+                is JsonPrimitive -> ManifestResource(manifestResource.requiredString("resource name"))
                 is JsonObject -> ManifestResource(
-                    name = resource["name"].requiredString("resource name"),
-                    types = resource["types"].stringArray(),
-                    idPrefixes = resource["idPrefixes"].optionalStringArray(),
+                    name = manifestResource["name"].requiredString("resource name"),
+                    types = manifestResource["types"].stringArray(),
+                    idPrefixes = manifestResource["idPrefixes"].optionalStringArray(),
                 )
-                else -> throw AddonResponseValidationException("manifest", "Manifest resource is invalid")
+                else -> throw AddonResponseValidationException(resource, "Manifest resource is invalid")
             }
         }
-        if (resources.isEmpty()) throw AddonResponseValidationException("manifest", "Manifest resources are empty")
+        if (resources.isEmpty()) throw AddonResponseValidationException(resource, "Manifest resources are empty")
         val types = root["types"].stringArray()
-        if (types.isEmpty()) throw AddonResponseValidationException("manifest", "Manifest types are empty")
+        if (types.isEmpty()) throw AddonResponseValidationException(resource, "Manifest types are empty")
         return AddonManifest(
             id = root["id"].requiredString("manifest id"),
             version = root["version"].requiredString("manifest version"),
@@ -86,6 +92,23 @@ object StremioJson {
                     configurationRequired = hints["configurationRequired"].optionalBoolean(),
                 )
             },
+        )
+    }
+
+    fun addonCatalog(input: String): AddonCatalogResponse {
+        val root = parse(input, "addon_catalog").record("addon catalog")
+        return AddonCatalogResponse(
+            addons = root["addons"].array("addon catalog items").map { element ->
+                val item = element.record("addon catalog item")
+                AddonCatalogItem(
+                    transportName = item["transportName"].optionalString(),
+                    transportUrl = item["transportUrl"].requiredString("addon transport URL"),
+                    manifest = manifest(item["manifest"].record("addon manifest"), "addon_catalog"),
+                )
+            },
+            cacheMaxAge = root.cacheLong("cacheMaxAge"),
+            staleRevalidate = root.cacheLong("staleRevalidate"),
+            staleError = root.cacheLong("staleError"),
         )
     }
 

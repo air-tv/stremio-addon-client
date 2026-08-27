@@ -51,6 +51,24 @@ data class AddonManifest(
 )
 
 @Serializable
+data class AddonCatalogItem(
+    val transportName: String? = null,
+    val transportUrl: String,
+    val manifest: AddonManifest,
+) {
+    override fun toString(): String =
+        "AddonCatalogItem(transportName=$transportName, transportUrl=<redacted>, manifest=${manifest.id})"
+}
+
+@Serializable
+data class AddonCatalogResponse(
+    val addons: List<AddonCatalogItem>,
+    val cacheMaxAge: Long? = null,
+    val staleRevalidate: Long? = null,
+    val staleError: Long? = null,
+)
+
+@Serializable
 data class Subtitle(
     val id: String = "default",
     val url: String,

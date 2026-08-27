@@ -16,7 +16,8 @@ class DefaultStremioAddonClientTest {
     private val manifest = """{
       "id":"org.example","version":"1.0.0","name":"Example",
       "resources":[{"name":"meta","types":["movie"],"idPrefixes":["tt"]},
-                   {"name":"stream","types":["movie"],"idPrefixes":["tt"]}],
+                   {"name":"stream","types":["movie"],"idPrefixes":["tt"]},
+                   {"name":"addon_catalog","types":["addon"],"idPrefixes":["community"]}],
       "types":["movie"],"catalogs":[]
     }"""
 
@@ -29,6 +30,8 @@ class DefaultStremioAddonClientTest {
                 request.url.endsWith("/manifest.json") -> manifest
                 "/meta/movie/tt0133093.json" in request.url ->
                     """{"meta":{"id":"tt0133093","type":"movie","name":"The Matrix"}}"""
+                "/addon_catalog/addon/community.json" in request.url ->
+                    """{"addons":[{"transportUrl":"https://entry.invalid/manifest.json","manifest":{"id":"org.entry","version":"1.0.0","name":"Entry","resources":["stream"],"types":["movie"]}}]}"""
                 else -> """{"streams":[{"url":"https://media.invalid/movie.mkv"}]}"""
             }
             AddonHttpResponse(200, emptyMap(), body.encodeToByteArray())
@@ -38,6 +41,7 @@ class DefaultStremioAddonClientTest {
         assertEquals("org.example", addon.manifest().id)
         assertEquals("The Matrix", addon.meta("movie", "tt0133093").meta.name)
         assertEquals(1, addon.streams("movie", "tt0133093").streams.size)
+        assertEquals("org.entry", addon.addonCatalog("addon", "community").addons.single().manifest.id)
         assertTrue(requests.any { "/base/meta/movie/tt0133093.json" in it.url })
         assertTrue(requests.all { "addon.invalid" !in it.toString() })
         assertFalse("addon.invalid" in addon.toString())
