@@ -3,3 +3,9 @@ node_modules/
 *.tgz
 *.tsbuildinfo
 .env
+/.gradle/
+/.kotlin/
+/build/
+/local.properties
+/.env
+/.air-tv/

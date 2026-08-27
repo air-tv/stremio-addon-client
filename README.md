@@ -1,5 +1,13 @@
 # `@get-air/stremio-addon-client`
 
+> Kotlin Multiplatform migration: the repository now also builds
+> `com.getair:stremio-addon-client:0.1.0-SNAPSHOT` for Android, JVM, Linux,
+> Windows, macOS, iOS, JavaScript, and Wasm. The existing TypeScript source and
+> tests remain the behavioral oracle until Kotlin parity is proven. Run
+> `./gradlew jvmTest jsNodeTest wasmJsNodeTest` for the portable KMP contract.
+> Release tags publish Maven artifacts to GitHub Packages; no local publishing
+> token belongs in this repository.
+
 [![CI](https://github.com/get-air/stremio-addon-client/actions/workflows/ci.yml/badge.svg)](https://github.com/get-air/stremio-addon-client/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@get-air/stremio-addon-client.svg)](https://www.npmjs.com/package/@get-air/stremio-addon-client)
 

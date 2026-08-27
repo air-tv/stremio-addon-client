@@ -1,4 +1,4 @@
-name: Publish to npm
+name: Publish to GitHub Packages
 
 on:
   release:
@@ -6,23 +6,71 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+  packages: write
 
 jobs:
-  publish:
+  linux:
     if: github.repository == 'get-air/stremio-addon-client' && github.event.release.prerelease == false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
-          package-manager-cache: false
-      - run: corepack enable
-      - run: npm install --global npm@11
-      - run: pnpm install --frozen-lockfile
-      - name: Verify release tag
-        run: node -e "const v=require('./package.json').version; if(v.includes('-')||process.env.GITHUB_REF_NAME!=='v'+v) process.exit(1)"
-      - run: pnpm run ci
-      - run: npm publish --access public --provenance
+          distribution: temurin
+          java-version: "17"
+      - name: Publish common, Android, JVM, web, and Linux artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          test "v$VERSION" = "$GITHUB_REF_NAME"
+          case "$VERSION" in *-SNAPSHOT|*+*) exit 1 ;; esac
+          ./gradlew \
+            publishKotlinMultiplatformPublicationToGitHubPackagesRepository \
+            publishAndroidReleasePublicationToGitHubPackagesRepository \
+            publishJvmPublicationToGitHubPackagesRepository \
+            publishJsPublicationToGitHubPackagesRepository \
+            publishWasmJsPublicationToGitHubPackagesRepository \
+            publishLinuxX64PublicationToGitHubPackagesRepository \
+            -PVERSION_NAME="$VERSION"
+
+  apple:
+    if: github.repository == 'get-air/stremio-addon-client' && github.event.release.prerelease == false
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Publish Apple artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./gradlew \
+            publishMacosX64PublicationToGitHubPackagesRepository \
+            publishMacosArm64PublicationToGitHubPackagesRepository \
+            publishIosX64PublicationToGitHubPackagesRepository \
+            publishIosArm64PublicationToGitHubPackagesRepository \
+            publishIosSimulatorArm64PublicationToGitHubPackagesRepository \
+            -PVERSION_NAME="$VERSION"
+
+  windows:
+    if: github.repository == 'get-air/stremio-addon-client' && github.event.release.prerelease == false
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Publish Windows artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./gradlew publishMingwX64PublicationToGitHubPackagesRepository -PVERSION_NAME="$VERSION"
