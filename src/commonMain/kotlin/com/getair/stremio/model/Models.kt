@@ -30,8 +30,8 @@ data class CatalogDefinition(
 @Serializable
 data class ManifestResource(
     val name: String,
-    val types: List<String> = emptyList(),
-    val idPrefixes: List<String> = emptyList(),
+    val types: List<String>? = null,
+    val idPrefixes: List<String>? = null,
 )
 
 @Serializable
