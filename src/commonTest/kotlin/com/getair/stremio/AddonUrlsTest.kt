@@ -67,14 +67,20 @@ class AddonUrlsTest {
             resources = listOf(
                 ManifestResource("catalog"),
                 ManifestResource("stream", listOf("movie", "series"), listOf("tt")),
+                ManifestResource("meta", listOf("movie")),
+                ManifestResource("subtitles"),
             ),
             types = listOf("movie", "series"),
             catalogs = listOf(CatalogDefinition("movie", "popular", "Popular")),
+            idPrefixes = listOf("tt"),
         )
 
         assertTrue(AddonUrls.isResourceSupported(manifest, "catalog", "movie", "popular"))
         assertTrue(AddonUrls.isResourceSupported(manifest, "stream", "movie", "tt1254207"))
         assertFalse(AddonUrls.isResourceSupported(manifest, "stream", "movie", "kitsu:1"))
+        assertTrue(AddonUrls.isResourceSupported(manifest, "meta", "movie", "kitsu:1"))
+        assertTrue(AddonUrls.isResourceSupported(manifest, "subtitles", "movie", "tt1254207"))
+        assertFalse(AddonUrls.isResourceSupported(manifest, "subtitles", "movie", "kitsu:1"))
     }
 
     @Test

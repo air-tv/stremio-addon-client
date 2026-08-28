@@ -125,6 +125,33 @@ const addon = await StremioAddon.connect(manifestUrl, { cache })
 
 Cache keys contain SHA-256 URL digests rather than configured addon URLs, so path-based addon credentials are not exposed in persistent keys.
 
+## Querying installed addons
+
+The application still owns global/profile addon registration and persistence.
+For resource fan-out it can pass an immutable snapshot to the stateless Kotlin
+coordinator. The fixed worker count prevents a large profile from opening every
+connection at once, while the returned items and failures stay in input-addon
+order regardless of completion order:
+
+```kotlin
+val result = queryStremioAddons(
+    addons = installed.map { installedAddon ->
+        StremioAddonBinding(
+            AddonInstanceId(installedAddon.localId),
+            installedAddon.client,
+        )
+    },
+    query = StremioAddonQuery.Streams("movie", "tt1254207"),
+    options = MultiAddonQueryOptions(maxConcurrency = 4),
+)
+```
+
+Capability filtering happens before a resource call. One addon failure does not
+discard healthy results, cancellation stops queued and active work, and both
+per-addon and aggregate result counts are capped. `AddonInstanceId` accepts only
+a short opaque local identifier; configured URLs and headers must never be used
+as identities or diagnostics.
+
 ## Research basis
 
 The implementation follows the [official Stremio addon protocol](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/protocol.md) and [SDK response definitions](https://github.com/Stremio/stremio-addon-sdk/tree/master/docs/api/responses). It also incorporates behavior found in the [official addon client](https://github.com/Stremio/stremio-addon-client), [Harbor](https://github.com/harborstremio/harbor), and [Cremio](https://github.com/itssoap/cremio): capability checks, abortable timeouts, bounded JSON reads, cache-control support, and tolerance for common community-addon response variations.

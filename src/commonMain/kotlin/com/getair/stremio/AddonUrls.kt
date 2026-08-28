@@ -94,7 +94,11 @@ object AddonUrls {
         return manifest.resources.any { candidate ->
             if (candidate.name != resource) return@any false
             val types = candidate.types ?: manifest.types
-            val prefixes = candidate.idPrefixes ?: manifest.idPrefixes
+            val prefixes = if (candidate.types == null) {
+                manifest.idPrefixes
+            } else {
+                candidate.idPrefixes.orEmpty()
+            }
             type in types && (prefixes.isEmpty() || prefixes.any(id::startsWith))
         }
     }
