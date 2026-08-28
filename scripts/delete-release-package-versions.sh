@@ -5,6 +5,8 @@ version="${1:-}"
 repository="${GITHUB_REPOSITORY:-}"
 owner="${repository%%/*}"
 repo_name="${repository#*/}"
+gh_bin="${GH_BIN:-gh}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo "Cleanup version must be stable MAJOR.MINOR.PATCH" >&2
@@ -25,33 +27,27 @@ EOF
 }
 
 if ! packages_json="$(
-  gh api --paginate --slurp "/orgs/$owner/packages?package_type=maven&per_page=100"
+  "$gh_bin" api --paginate --slurp "/orgs/$owner/packages?package_type=maven&per_page=100"
 )"; then
   echo "Failed to enumerate Maven packages for $repository" >&2
   manual_recovery
   exit 1
 fi
 
-mapfile -t packages < <(
-  jq -r --arg repository "$repository" '
-    .[][]
-    | select((.repository.full_name // $repository) == $repository)
-    | .name
-  ' <<<"$packages_json" |
-    while IFS= read -r package; do
-      case "$package" in
-        com.getair.stremio-addon-client|com.getair.stremio-addon-client-*|stremio-addon-client|stremio-addon-client-*)
-          printf '%s\n' "$package"
-          ;;
-      esac
-    done
-)
+mapfile -t published_packages < <(jq -r '.[][] | .name' <<<"$packages_json" | sort -u)
+mapfile -t expected_packages < <("$script_dir/release-maven-package-names.sh")
+packages=()
+for package in "${expected_packages[@]}"; do
+  if printf '%s\n' "${published_packages[@]}" | grep -Fqx -- "$package"; then
+    packages+=("$package")
+  fi
+done
 
 failures=0
 for package in "${packages[@]}"; do
   encoded_package="$(jq -rn --arg value "$package" '$value|@uri')"
   if ! versions_json="$(
-    gh api --paginate --slurp "/orgs/$owner/packages/maven/$encoded_package/versions?per_page=100"
+    "$gh_bin" api --paginate --slurp "/orgs/$owner/packages/maven/$encoded_package/versions?per_page=100"
   )"; then
     echo "Failed to enumerate versions for $package" >&2
     failures=$((failures + 1))
@@ -62,7 +58,7 @@ for package in "${packages[@]}"; do
   )
   for version_id in "${version_ids[@]}"; do
     echo "Deleting $package version $version"
-    if ! gh api --method DELETE "/orgs/$owner/packages/maven/$encoded_package/versions/$version_id"; then
+    if ! "$gh_bin" api --method DELETE "/orgs/$owner/packages/maven/$encoded_package/versions/$version_id"; then
       echo "Failed to delete $package version id $version_id" >&2
       failures=$((failures + 1))
     fi
@@ -73,7 +69,7 @@ remaining=0
 for package in "${packages[@]}"; do
   encoded_package="$(jq -rn --arg value "$package" '$value|@uri')"
   if ! versions_json="$(
-    gh api --paginate --slurp "/orgs/$owner/packages/maven/$encoded_package/versions?per_page=100"
+    "$gh_bin" api --paginate --slurp "/orgs/$owner/packages/maven/$encoded_package/versions?per_page=100"
   )"; then
     echo "Failed to verify versions for $package" >&2
     remaining=$((remaining + 1))

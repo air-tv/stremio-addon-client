@@ -36,6 +36,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
+      - run: ./scripts/test-release-package-preflight.sh
       - run: ./gradlew jvmTest jsNodeTest wasmJsNodeTest compileReleaseKotlinAndroid linuxX64Test --max-workers=2
 
   verify-apple:
@@ -70,8 +71,24 @@ jobs:
       - run: ./gradlew mingwX64Test --max-workers=2
         shell: bash
 
-  publish-linux:
+  preflight-packages:
     needs: [validate, verify-linux, verify-apple, verify-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Refuse an existing release version before any package write
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+        run: ./scripts/assert-release-package-version-available.sh "$RELEASE_VERSION"
+
+  publish-linux:
+    needs: [validate, verify-linux, verify-apple, verify-windows, preflight-packages]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -183,12 +200,13 @@ jobs:
       - verify-linux
       - verify-apple
       - verify-windows
+      - preflight-packages
       - publish-linux
       - publish-apple
       - publish-windows
       - root-metadata
     if: >-
-      ${{ always() && failure() && needs.validate.result == 'success' &&
+      ${{ always() && needs.validate.result == 'success' &&
           (needs.publish-linux.result == 'failure' || needs.publish-linux.result == 'cancelled' ||
            needs.publish-apple.result == 'failure' || needs.publish-apple.result == 'cancelled' ||
            needs.publish-windows.result == 'failure' || needs.publish-windows.result == 'cancelled' ||
