@@ -73,7 +73,7 @@ publishing {
         pom {
             name.set("Air Stremio Addon Client")
             description.set("A safe Kotlin Multiplatform client for the Stremio addon protocol.")
-            url.set("https://github.com/get-air/stremio-addon-client")
+            url.set("https://github.com/air-tv/stremio-addon-client")
             licenses {
                 license {
                     name.set("MIT License")
@@ -82,16 +82,16 @@ publishing {
                 }
             }
             scm {
-                url.set("https://github.com/get-air/stremio-addon-client")
-                connection.set("scm:git:https://github.com/get-air/stremio-addon-client.git")
-                developerConnection.set("scm:git:ssh://git@github.com/get-air/stremio-addon-client.git")
+                url.set("https://github.com/air-tv/stremio-addon-client")
+                connection.set("scm:git:https://github.com/air-tv/stremio-addon-client.git")
+                developerConnection.set("scm:git:ssh://git@github.com/air-tv/stremio-addon-client.git")
             }
         }
     }
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/get-air/stremio-addon-client")
+            url = uri("https://maven.pkg.github.com/air-tv/stremio-addon-client")
             credentials {
                 username = providers.environmentVariable("GITHUB_ACTOR").orNull
                 password = providers.environmentVariable("GITHUB_TOKEN").orNull

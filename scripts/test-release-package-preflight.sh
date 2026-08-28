@@ -4,7 +4,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 mock_gh="$script_dir/test-fixtures/mock-gh-packages.sh"
 export GH_TOKEN=test-token
-export GITHUB_REPOSITORY=get-air/stremio-addon-client
+export GITHUB_REPOSITORY=air-tv/stremio-addon-client
 export GH_BIN="$mock_gh"
 
 MOCK_PACKAGE_STATE=absent "$script_dir/assert-release-package-version-available.sh" 1.2.3 >/dev/null

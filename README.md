@@ -28,7 +28,7 @@ Gradle properties. Never commit the token.
 ```kotlin
 repositories {
     maven {
-        url = uri("https://maven.pkg.github.com/get-air/stremio-addon-client")
+        url = uri("https://maven.pkg.github.com/air-tv/stremio-addon-client")
         credentials {
             username = providers.environmentVariable("GITHUB_ACTOR").orNull
             password = providers.environmentVariable("GITHUB_TOKEN").orNull
@@ -48,7 +48,7 @@ is the read-only package token. GitHub Actions consumers can use the workflow's
 built-in `GITHUB_TOKEN` after granting `packages: read`. Workspace development
 continues to use the composite build and does not need package credentials.
 
-[![CI](https://github.com/get-air/stremio-addon-client/actions/workflows/ci.yml/badge.svg)](https://github.com/get-air/stremio-addon-client/actions/workflows/ci.yml)
+[![CI](https://github.com/air-tv/stremio-addon-client/actions/workflows/ci.yml/badge.svg)](https://github.com/air-tv/stremio-addon-client/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@get-air/stremio-addon-client.svg)](https://www.npmjs.com/package/@get-air/stremio-addon-client)
 
 A safe, fully typed client for consuming remote Stremio addon protocol endpoints. It does not build addons, execute addon code, maintain an installed-addon list, or persist addon configuration.

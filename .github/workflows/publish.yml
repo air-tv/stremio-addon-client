@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   validate:
-    if: github.repository == 'get-air/stremio-addon-client' && github.event.release.prerelease == false
+    if: github.repository == 'air-tv/stremio-addon-client' && github.event.release.prerelease == false
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
