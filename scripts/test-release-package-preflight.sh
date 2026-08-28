@@ -17,6 +17,16 @@ if MOCK_PACKAGE_STATE=present "$script_dir/delete-release-package-versions.sh" 1
   echo "Cleanup reported success while the exact version remained" >&2
   exit 1
 fi
+for malformed_state in malformed-packages invalid-package-shape malformed-versions invalid-version-shape; do
+  if MOCK_PACKAGE_STATE="$malformed_state" "$script_dir/assert-release-package-version-available.sh" 1.2.3 >/dev/null 2>&1; then
+    echo "Preflight accepted $malformed_state API data" >&2
+    exit 1
+  fi
+  if MOCK_PACKAGE_STATE="$malformed_state" "$script_dir/delete-release-package-versions.sh" 1.2.3 >/dev/null 2>&1; then
+    echo "Cleanup accepted $malformed_state API data" >&2
+    exit 1
+  fi
+done
 
 workflow="$script_dir/../.github/workflows/publish.yml"
 grep -Fq "needs.publish-linux.result == 'cancelled'" "$workflow"

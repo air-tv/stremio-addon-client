@@ -23,8 +23,39 @@ if ! packages_json="$(
   exit 1
 fi
 
-mapfile -t published_packages < <(jq -r '.[][] | .name' <<<"$packages_json" | sort -u)
-mapfile -t expected_packages < <("$script_dir/release-maven-package-names.sh")
+if ! published_package_lines="$(
+  jq -r '
+    if type == "array"
+       and all(.[]; type == "array")
+       and all(.[][]; type == "object" and (.name | type == "string"))
+    then [.[][] | .name] | unique[]
+    else error("invalid GitHub Maven package response")
+    end
+  ' <<<"$packages_json"
+)"; then
+  echo "Invalid Maven package response for $repository" >&2
+  exit 1
+fi
+published_packages=()
+if [[ -n "$published_package_lines" ]]; then
+  mapfile -t published_packages <<<"$published_package_lines"
+fi
+
+if ! expected_package_lines="$("$script_dir/release-maven-package-names.sh")"; then
+  echo "Failed to enumerate expected Maven packages" >&2
+  exit 1
+fi
+mapfile -t expected_packages <<<"$expected_package_lines"
+if ! expected_unique_count="$(printf '%s\n' "${expected_packages[@]}" | sort -u | wc -l)"; then
+  echo "Failed to validate expected Maven packages" >&2
+  exit 1
+fi
+if (( ${#expected_packages[@]} != 12 )) ||
+   [[ "$expected_unique_count" -ne 12 ]] ||
+   printf '%s\n' "${expected_packages[@]}" | grep -Eq '^$'; then
+  echo "Expected Maven package enumerator must return exactly 12 unique non-empty names" >&2
+  exit 1
+fi
 
 found=0
 for package in "${expected_packages[@]}"; do
@@ -38,7 +69,20 @@ for package in "${expected_packages[@]}"; do
     echo "Failed to enumerate versions for $package" >&2
     exit 1
   fi
-  if jq -e --arg version "$version" 'any(.[][]; .name == $version)' <<<"$versions_json" >/dev/null; then
+  if ! version_exists="$(
+    jq -r --arg version "$version" '
+      if type == "array"
+         and all(.[]; type == "array")
+         and all(.[][]; type == "object" and (.name | type == "string") and (.id | type == "number") and .id >= 0 and .id == (.id | floor))
+      then any(.[][]; .name == $version) | tostring
+      else error("invalid GitHub Maven version response")
+      end
+    ' <<<"$versions_json"
+  )"; then
+    echo "Invalid Maven version response for $package" >&2
+    exit 1
+  fi
+  if [[ "$version_exists" == "true" ]]; then
     echo "Release version $version already exists in $package; refusing to overwrite or recover it." >&2
     found=1
   fi

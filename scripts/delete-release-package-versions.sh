@@ -34,8 +34,43 @@ if ! packages_json="$(
   exit 1
 fi
 
-mapfile -t published_packages < <(jq -r '.[][] | .name' <<<"$packages_json" | sort -u)
-mapfile -t expected_packages < <("$script_dir/release-maven-package-names.sh")
+if ! published_package_lines="$(
+  jq -r '
+    if type == "array"
+       and all(.[]; type == "array")
+       and all(.[][]; type == "object" and (.name | type == "string"))
+    then [.[][] | .name] | unique[]
+    else error("invalid GitHub Maven package response")
+    end
+  ' <<<"$packages_json"
+)"; then
+  echo "Invalid Maven package response for $repository" >&2
+  manual_recovery
+  exit 1
+fi
+published_packages=()
+if [[ -n "$published_package_lines" ]]; then
+  mapfile -t published_packages <<<"$published_package_lines"
+fi
+
+if ! expected_package_lines="$("$script_dir/release-maven-package-names.sh")"; then
+  echo "Failed to enumerate expected Maven packages" >&2
+  manual_recovery
+  exit 1
+fi
+mapfile -t expected_packages <<<"$expected_package_lines"
+if ! expected_unique_count="$(printf '%s\n' "${expected_packages[@]}" | sort -u | wc -l)"; then
+  echo "Failed to validate expected Maven packages" >&2
+  manual_recovery
+  exit 1
+fi
+if (( ${#expected_packages[@]} != 12 )) ||
+   [[ "$expected_unique_count" -ne 12 ]] ||
+   printf '%s\n' "${expected_packages[@]}" | grep -Eq '^$'; then
+  echo "Expected Maven package enumerator must return exactly 12 unique non-empty names" >&2
+  manual_recovery
+  exit 1
+fi
 packages=()
 for package in "${expected_packages[@]}"; do
   if printf '%s\n' "${published_packages[@]}" | grep -Fqx -- "$package"; then
@@ -53,9 +88,24 @@ for package in "${packages[@]}"; do
     failures=$((failures + 1))
     continue
   fi
-  mapfile -t version_ids < <(
-    jq -r --arg version "$version" '.[][] | select(.name == $version) | .id' <<<"$versions_json"
-  )
+  if ! version_id_lines="$(
+    jq -r --arg version "$version" '
+      if type == "array"
+         and all(.[]; type == "array")
+         and all(.[][]; type == "object" and (.name | type == "string") and (.id | type == "number") and .id >= 0 and .id == (.id | floor))
+      then .[][] | select(.name == $version) | .id
+      else error("invalid GitHub Maven version response")
+      end
+    ' <<<"$versions_json"
+  )"; then
+    echo "Invalid Maven version response for $package" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+  version_ids=()
+  if [[ -n "$version_id_lines" ]]; then
+    mapfile -t version_ids <<<"$version_id_lines"
+  fi
   for version_id in "${version_ids[@]}"; do
     echo "Deleting $package version $version"
     if ! "$gh_bin" api --method DELETE "/orgs/$owner/packages/maven/$encoded_package/versions/$version_id"; then
@@ -75,7 +125,21 @@ for package in "${packages[@]}"; do
     remaining=$((remaining + 1))
     continue
   fi
-  if jq -e --arg version "$version" 'any(.[][]; .name == $version)' <<<"$versions_json" >/dev/null; then
+  if ! version_exists="$(
+    jq -r --arg version "$version" '
+      if type == "array"
+         and all(.[]; type == "array")
+         and all(.[][]; type == "object" and (.name | type == "string") and (.id | type == "number") and .id >= 0 and .id == (.id | floor))
+      then any(.[][]; .name == $version) | tostring
+      else error("invalid GitHub Maven version response")
+      end
+    ' <<<"$versions_json"
+  )"; then
+    echo "Invalid Maven version response while verifying $package" >&2
+    remaining=$((remaining + 1))
+    continue
+  fi
+  if [[ "$version_exists" == "true" ]]; then
     echo "Package cleanup remains incomplete for $package version $version" >&2
     remaining=$((remaining + 1))
   fi
