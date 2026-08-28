@@ -6,7 +6,10 @@ on:
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
 
 jobs:
   validate:
@@ -21,7 +24,7 @@ jobs:
       - id: version
         run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
 
-  linux-targets:
+  verify-linux:
     needs: validate
     runs-on: ubuntu-latest
     steps:
@@ -34,22 +37,8 @@ jobs:
           java-version: "17"
       - run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
       - run: ./gradlew jvmTest jsNodeTest wasmJsNodeTest compileReleaseKotlinAndroid linuxX64Test --max-workers=2
-      - name: Publish Android, JVM, web, and Linux targets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_TYPE: tag
-          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
-        run: >-
-          ./gradlew
-          publishAndroidReleasePublicationToGitHubPackagesRepository
-          publishJvmPublicationToGitHubPackagesRepository
-          publishJsPublicationToGitHubPackagesRepository
-          publishWasmJsPublicationToGitHubPackagesRepository
-          publishLinuxX64PublicationToGitHubPackagesRepository
-          -PVERSION_NAME=${{ needs.validate.outputs.version }}
-          --max-workers=2
 
-  apple-targets:
+  verify-apple:
     needs: validate
     runs-on: macos-latest
     steps:
@@ -64,22 +53,8 @@ jobs:
       - run: >-
           ./gradlew macosX64Test compileKotlinMacosArm64 compileKotlinIosX64
           compileKotlinIosArm64 compileKotlinIosSimulatorArm64 --max-workers=2
-      - name: Publish Apple targets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_TYPE: tag
-          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
-        run: >-
-          ./gradlew
-          publishMacosX64PublicationToGitHubPackagesRepository
-          publishMacosArm64PublicationToGitHubPackagesRepository
-          publishIosX64PublicationToGitHubPackagesRepository
-          publishIosArm64PublicationToGitHubPackagesRepository
-          publishIosSimulatorArm64PublicationToGitHubPackagesRepository
-          -PVERSION_NAME=${{ needs.validate.outputs.version }}
-          --max-workers=2
 
-  windows-target:
+  verify-windows:
     needs: validate
     runs-on: windows-latest
     steps:
@@ -94,20 +69,15 @@ jobs:
         shell: bash
       - run: ./gradlew mingwX64Test --max-workers=2
         shell: bash
-      - name: Publish Windows target
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_TYPE: tag
-          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
-        run: >-
-          ./gradlew publishMingwX64PublicationToGitHubPackagesRepository
-          -PVERSION_NAME=${{ needs.validate.outputs.version }}
-          --max-workers=2
 
-  root-metadata:
-    needs: [validate, linux-targets, apple-targets, windows-target]
+  publish-linux:
+    needs: [validate, verify-linux, verify-apple, verify-windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      AIR_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -116,13 +86,124 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
+      - name: Publish Android, JVM, web, and Linux target artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          ./gradlew
+          publishAndroidReleasePublicationToGitHubPackagesRepository
+          publishJvmPublicationToGitHubPackagesRepository
+          publishJsPublicationToGitHubPackagesRepository
+          publishWasmJsPublicationToGitHubPackagesRepository
+          publishLinuxX64PublicationToGitHubPackagesRepository
+          -PVERSION_NAME=${{ needs.validate.outputs.version }}
+          --max-workers=2
+
+  publish-apple:
+    needs: [validate, publish-linux]
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      AIR_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Publish Apple target artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          ./gradlew
+          publishMacosX64PublicationToGitHubPackagesRepository
+          publishMacosArm64PublicationToGitHubPackagesRepository
+          publishIosX64PublicationToGitHubPackagesRepository
+          publishIosArm64PublicationToGitHubPackagesRepository
+          publishIosSimulatorArm64PublicationToGitHubPackagesRepository
+          -PVERSION_NAME=${{ needs.validate.outputs.version }}
+          --max-workers=2
+
+  publish-windows:
+    needs: [validate, publish-apple]
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      AIR_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Publish Windows target artifact
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          ./gradlew publishMingwX64PublicationToGitHubPackagesRepository
+          -PVERSION_NAME=${{ needs.validate.outputs.version }}
+          --max-workers=2
+
+  root-metadata:
+    needs: [validate, publish-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      AIR_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
       - name: Publish root Kotlin Multiplatform metadata last
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_TYPE: tag
-          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
         run: >-
           ./gradlew publishKotlinMultiplatformPublicationToGitHubPackagesRepository
           -PVERSION_NAME=${{ needs.validate.outputs.version }}
           --max-workers=2
+
+  recover-partial-release:
+    needs:
+      - validate
+      - verify-linux
+      - verify-apple
+      - verify-windows
+      - publish-linux
+      - publish-apple
+      - publish-windows
+      - root-metadata
+    if: >-
+      ${{ always() && failure() && needs.validate.result == 'success' &&
+          (needs.publish-linux.result == 'failure' || needs.publish-linux.result == 'cancelled' ||
+           needs.publish-apple.result == 'failure' || needs.publish-apple.result == 'cancelled' ||
+           needs.publish-windows.result == 'failure' || needs.publish-windows.result == 'cancelled' ||
+           needs.root-metadata.result == 'failure' || needs.root-metadata.result == 'cancelled' ||
+           (needs.publish-linux.result == 'success' && needs.root-metadata.result != 'success')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Remove every partial Maven package version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+        run: ./scripts/delete-release-package-versions.sh "$RELEASE_VERSION"
