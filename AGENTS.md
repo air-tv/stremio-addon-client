@@ -1,9 +1,9 @@
 # Air Stremio addon client repository guidance
 
-- This repository is being ported from TypeScript to one Kotlin Multiplatform library. Keep it independently buildable and publishable; never turn it into a monorepo.
-- Treat the TypeScript implementation and tests as the behavioral reference until every behavior has a Kotlin contract test. Remove reference code only after parity is proven.
+- This is one independently buildable and publishable Kotlin Multiplatform library. Keep it Kotlin-only and do not turn it into a monorepo.
+- The historical [`get-air/stremio-addon-client`](https://github.com/get-air/stremio-addon-client) implementation is a behavioral reference only. Preserve required behavior through Kotlin contract tests and fixtures.
 - The library consumes remote Stremio addons. It must never execute addon code or maintain installed-addon/configuration storage.
-- Public async APIs are suspend functions. Do not add callback, Promise, Effect, blocking, or platform-specific duplicate façades.
+- Public async APIs are suspend functions. Do not add callback, blocking, or platform-specific duplicate facades.
 - Keep platform types out of `commonMain`. Use small transport/cache interfaces and constructor injection; no DI framework.
 - Treat addon URLs and responses as untrusted. Preserve URL policy, timeout, response-size, status, JSON, schema, redirect, and capability checks.
 - A library-owned deadline is an `AddonTimeoutException`, never structural coroutine cancellation. Parent/caller cancellation must propagate unchanged so bounded multi-addon work remains correct.
