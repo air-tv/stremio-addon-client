@@ -8,6 +8,9 @@ import com.getair.stremio.model.MetaResponse
 import com.getair.stremio.model.Stream
 import com.getair.stremio.model.StreamResponse
 import com.getair.stremio.model.SubtitlesResponse
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -101,6 +104,71 @@ class MultiAddonQueryTest {
         assertFalse("configured.invalid" in result.toString())
         assertFalse("do-not-leak" in result.toString())
         assertFalse("Authorization" in result.toString())
+    }
+
+    @Test
+    fun ownedTimeoutsAndStatusFailuresRemainIsolatedAndActionable() = runTest {
+        val timedHttp = HttpClient(MockEngine) {
+            engine {
+                addHandler { request ->
+                    if (request.url.encodedPath.endsWith("/manifest.json")) {
+                        respond(MULTI_ADDON_MANIFEST)
+                    } else {
+                        awaitCancellation()
+                    }
+                }
+            }
+        }
+        try {
+            val timedTransport = AddonHttpTransport { request ->
+                if (request.url.endsWith("/manifest.json")) {
+                    AddonHttpResponse(200, emptyMap(), MULTI_ADDON_MANIFEST.encodeToByteArray())
+                } else {
+                    KtorAddonHttpTransport(timedHttp).execute(request.copy(timeoutMillis = 10))
+                }
+            }
+            val timedClient = connectStremioAddon(
+                "https://timed.invalid/manifest.json",
+                timedTransport,
+                StremioClientOptions(timeoutMillis = 0),
+            )
+            val timedOut = StremioAddonBinding(AddonInstanceId("timed-out"), timedClient)
+            val unavailable = binding("unavailable") {
+                throw AddonHttpStatusException(503)
+            }
+            val missing = binding("missing") {
+                throw AddonHttpStatusException(404)
+            }
+            val tooLarge = binding("too-large") {
+                throw AddonResponseTooLargeException(1_024)
+            }
+            val successful = binding("successful") {
+                StreamResponse(listOf(stream("usable")))
+            }
+
+            val result = queryStremioAddons(
+                listOf(timedOut, unavailable, missing, tooLarge, successful),
+                StremioAddonQuery.Streams("movie", "tt0133093"),
+                MultiAddonQueryOptions(maxConcurrency = 5),
+            )
+
+            assertEquals(listOf("successful"), result.items.map { it.addonId.value })
+            assertEquals(
+                listOf(
+                    AddonQueryFailureKind.Timeout,
+                    AddonQueryFailureKind.HttpStatus,
+                    AddonQueryFailureKind.HttpStatus,
+                    AddonQueryFailureKind.ResponseTooLarge,
+                ),
+                result.failures.map { it.kind },
+            )
+            assertEquals(listOf(true, true, false, false), result.failures.map { it.retryable })
+            assertEquals(listOf(null, 503, 404, null), result.failures.map { it.httpStatus })
+            assertFalse("timed.invalid" in result.toString())
+            assertFalse("1024" in result.toString())
+        } finally {
+            timedHttp.close()
+        }
     }
 
     @Test
@@ -206,6 +274,12 @@ class MultiAddonQueryTest {
 
     private fun stream(name: String) = Stream(url = "https://media.invalid/$name.mkv", name = name)
 }
+
+private const val MULTI_ADDON_MANIFEST = """{
+  "id":"org.example","version":"1.0.0","name":"Example",
+  "resources":[{"name":"stream","types":["movie"],"idPrefixes":["tt"]}],
+  "types":["movie"],"catalogs":[]
+}"""
 
 private open class BaseClient(private val manifest: AddonManifest) : StremioAddonClient {
     override suspend fun manifest(options: AddonRequestOptions): AddonManifest = manifest

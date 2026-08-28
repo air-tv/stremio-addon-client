@@ -5,11 +5,16 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.headersOf
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class DefaultStremioAddonClientTest {
@@ -58,18 +63,20 @@ class DefaultStremioAddonClientTest {
             }
         }
         try {
-            assertFailsWith<AddonTransportException> {
+            val failure = assertFailsWith<AddonResponseTooLargeException> {
                 KtorAddonHttpTransport(declaredClient).execute(
                     AddonHttpRequest("https://example.invalid", timeoutMillis = 0, maxResponseBytes = 4),
                 )
             }
+            assertEquals(4, failure.maxResponseBytes)
+            assertFalse(failure.retryable)
         } finally {
             declaredClient.close()
         }
 
         val streamedClient = HttpClient(MockEngine) { engine { addHandler { respond("oversize") } } }
         try {
-            assertFailsWith<AddonTransportException> {
+            assertFailsWith<AddonResponseTooLargeException> {
                 KtorAddonHttpTransport(streamedClient).execute(
                     AddonHttpRequest("https://example.invalid", timeoutMillis = 0, maxResponseBytes = 4),
                 )
@@ -77,6 +84,115 @@ class DefaultStremioAddonClientTest {
         } finally {
             streamedClient.close()
         }
+    }
+
+    @Test
+    fun ownedTimeoutIsTypedWhileParentTimeoutRemainsCancellation() = runTest {
+        val client = HttpClient(MockEngine) {
+            engine { addHandler { awaitCancellation() } }
+        }
+        try {
+            val transport = KtorAddonHttpTransport(client)
+            val owned = assertFailsWith<AddonTimeoutException> {
+                transport.execute(
+                    AddonHttpRequest("https://example.invalid", timeoutMillis = 10),
+                )
+            }
+            assertEquals(10, owned.timeoutMillis)
+            assertTrue(owned.retryable)
+            assertFalse((owned as Throwable) is CancellationException)
+
+            assertFailsWith<TimeoutCancellationException> {
+                withTimeout(5) {
+                    transport.execute(
+                        AddonHttpRequest("https://example.invalid", timeoutMillis = 10_000),
+                    )
+                }
+            }
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun unexpectedTransportFailuresAreRetryableAndRedacted() = runTest {
+        val client = HttpClient(MockEngine) {
+            engine {
+                addHandler {
+                    error("https://configured.invalid/secret Authorization: Bearer do-not-leak")
+                }
+            }
+        }
+        try {
+            val failure = assertFailsWith<AddonTransportException> {
+                KtorAddonHttpTransport(client).execute(
+                    AddonHttpRequest("https://configured.invalid/secret", timeoutMillis = 0),
+                )
+            }
+            assertEquals(AddonFailureKind.Transport, failure.kind)
+            assertTrue(failure.retryable)
+            assertFalse("configured.invalid" in failure.toString())
+            assertFalse("Authorization" in failure.toString())
+            assertFalse("do-not-leak" in failure.toString())
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun reportsStatusJsonSchemaAndUnsupportedFailuresWithoutSecrets() = runTest {
+        var status = 200
+        var resourceBody = """{"streams":[]}"""
+        val transport = AddonHttpTransport { request ->
+            if (request.url.endsWith("/manifest.json")) {
+                AddonHttpResponse(200, emptyMap(), manifest.encodeToByteArray())
+            } else {
+                AddonHttpResponse(status, emptyMap(), resourceBody.encodeToByteArray())
+            }
+        }
+        val addon = connectStremioAddon(
+            "https://addon.invalid/config-secret/manifest.json",
+            transport,
+        )
+
+        status = 503
+        val unavailable = assertFailsWith<AddonHttpStatusException> {
+            addon.streams("movie", "tt-secret")
+        }
+        assertEquals(503, unavailable.status)
+        assertTrue(unavailable.retryable)
+
+        status = 404
+        val missing = assertFailsWith<AddonHttpStatusException> {
+            addon.streams("movie", "tt-secret")
+        }
+        assertEquals(404, missing.status)
+        assertFalse(missing.retryable)
+
+        status = 200
+        resourceBody = "{"
+        val malformed = assertFailsWith<AddonInvalidJsonException> {
+            addon.streams("movie", "tt-secret")
+        }
+        assertEquals("stream", malformed.resource)
+
+        resourceBody = """{"streams":"invalid"}"""
+        val invalid = assertFailsWith<AddonResponseValidationException> {
+            addon.streams("movie", "tt-secret")
+        }
+        assertEquals(AddonFailureKind.InvalidResponse, invalid.kind)
+
+        val unsupported = assertFailsWith<AddonResourceUnsupportedException> {
+            addon.subtitles("movie", "tt-secret")
+        }
+        assertIs<AddonResponseValidationException>(unsupported)
+        assertEquals(AddonFailureKind.UnsupportedResource, unsupported.kind)
+
+        val rendered = listOf(unavailable, missing, malformed, invalid, unsupported).toString()
+        assertFalse("addon.invalid" in rendered)
+        assertFalse("config-secret" in rendered)
+        assertFalse("tt-secret" in rendered)
+        assertFalse(resourceBody in rendered)
     }
 
     @Test

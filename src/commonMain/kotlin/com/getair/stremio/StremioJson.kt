@@ -28,11 +28,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-class AddonResponseValidationException(
-    val resource: String,
-    message: String,
-) : IllegalArgumentException(message)
-
 object StremioJson {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -266,8 +261,8 @@ object StremioJson {
 
     private fun parse(input: String, resource: String): JsonElement = try {
         json.parseToJsonElement(input)
-    } catch (_: Throwable) {
-        throw AddonResponseValidationException(resource, "Addon response is not valid JSON")
+    } catch (_: Exception) {
+        throw AddonInvalidJsonException(resource)
     }
 
     private fun JsonElement?.record(resource: String): JsonObject =

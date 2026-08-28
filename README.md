@@ -64,6 +64,13 @@ HTTPS is required by default. Credentials in URL authorities and literal private
 
 Requests have a 15-second default timeout and a 10 MiB response limit. Redirect destinations are checked against the same URL policy. Non-success status codes, invalid JSON, invalid protocol responses, timeouts, oversized bodies, and unsupported resources have distinct tagged errors.
 
+Kotlin failures implement `AddonClientFailure`, exposing a stable `kind` and
+conservative `retryable` flag without retaining configured addon URLs, request
+headers, IDs, or response bodies. Library-owned timeouts are ordinary typed
+failures; cancelling the calling coroutine still propagates cancellation. HTTP
+408, 429, and 5xx responses are retryable, while malformed responses,
+unsupported resources, and responses exceeding the configured bound are not.
+
 This library validates protocol data; it does not decide whether a returned stream is legal, trusted, or safe to play. Applications should present P2P warnings and apply their own stream URL policy before playback.
 
 Hostname checks cannot prevent DNS rebinding in a privileged server or desktop process. Applications accepting arbitrary addon URLs should enforce resolved-address policy in their injected transport as well.
@@ -151,6 +158,10 @@ discard healthy results, cancellation stops queued and active work, and both
 per-addon and aggregate result counts are capped. `AddonInstanceId` accepts only
 a short opaque local identifier; configured URLs and headers must never be used
 as identities or diagnostics.
+
+Partial failures also expose their stable kind, retryability, and an HTTP status
+when one exists. They never include provider URLs, request headers, media IDs,
+or response text.
 
 ## Research basis
 

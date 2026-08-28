@@ -61,6 +61,9 @@ data class MultiAddonQueryOptions(
 
 enum class AddonQueryFailureKind {
     Transport,
+    Timeout,
+    HttpStatus,
+    ResponseTooLarge,
     InvalidResponse,
     Unexpected,
 }
@@ -68,6 +71,8 @@ enum class AddonQueryFailureKind {
 data class AddonQueryFailure(
     val addonId: AddonInstanceId,
     val kind: AddonQueryFailureKind,
+    val retryable: Boolean = false,
+    val httpStatus: Int? = null,
 )
 
 data class SourcedAddonItem<T>(
@@ -178,7 +183,12 @@ suspend fun <T> queryStremioAddons(
     outcomes.forEachIndexed { index, outcome ->
         val addonId = addons[index].id
         when (outcome) {
-            is QueryOutcome.Failure -> failures += AddonQueryFailure(addonId, outcome.kind)
+            is QueryOutcome.Failure -> failures += AddonQueryFailure(
+                addonId = addonId,
+                kind = outcome.kind,
+                retryable = outcome.retryable,
+                httpStatus = outcome.httpStatus,
+            )
             QueryOutcome.Unsupported -> unsupported += addonId
             is QueryOutcome.Success -> {
                 val remaining = options.maxTotalItems - items.size
@@ -241,16 +251,30 @@ private suspend fun <T> executeOne(
     }
 } catch (cancelled: CancellationException) {
     throw cancelled
-} catch (_: AddonTransportException) {
-    QueryOutcome.Failure(AddonQueryFailureKind.Transport)
+} catch (_: AddonTimeoutException) {
+    QueryOutcome.Failure(AddonQueryFailureKind.Timeout, retryable = true)
+} catch (status: AddonHttpStatusException) {
+    QueryOutcome.Failure(
+        AddonQueryFailureKind.HttpStatus,
+        retryable = status.retryable,
+        httpStatus = status.status,
+    )
+} catch (_: AddonResponseTooLargeException) {
+    QueryOutcome.Failure(AddonQueryFailureKind.ResponseTooLarge, retryable = false)
+} catch (transport: AddonTransportException) {
+    QueryOutcome.Failure(AddonQueryFailureKind.Transport, retryable = transport.retryable)
 } catch (_: AddonResponseValidationException) {
-    QueryOutcome.Failure(AddonQueryFailureKind.InvalidResponse)
+    QueryOutcome.Failure(AddonQueryFailureKind.InvalidResponse, retryable = false)
 } catch (_: Exception) {
-    QueryOutcome.Failure(AddonQueryFailureKind.Unexpected)
+    QueryOutcome.Failure(AddonQueryFailureKind.Unexpected, retryable = false)
 }
 
 private sealed interface QueryOutcome<out T> {
     data class Success<T>(val items: List<T>, val truncated: Boolean) : QueryOutcome<T>
-    data class Failure(val kind: AddonQueryFailureKind) : QueryOutcome<Nothing>
+    data class Failure(
+        val kind: AddonQueryFailureKind,
+        val retryable: Boolean,
+        val httpStatus: Int? = null,
+    ) : QueryOutcome<Nothing>
     data object Unsupported : QueryOutcome<Nothing>
 }

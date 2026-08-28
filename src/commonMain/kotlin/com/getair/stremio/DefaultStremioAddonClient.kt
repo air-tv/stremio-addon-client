@@ -148,7 +148,7 @@ private class DefaultStremioAddonClient(
 
     private fun requireSupported(resource: String, type: String, id: String) {
         if (!AddonUrls.isResourceSupported(manifestValue, resource, type, id)) {
-            throw AddonResponseValidationException(resource, "Addon does not support the requested resource")
+            throw AddonResourceUnsupportedException(resource)
         }
     }
 
@@ -174,24 +174,33 @@ private suspend fun execute(
         )
         if (response.status in 300..399) {
             if (redirectCount >= options.maxRedirects) {
-                throw AddonTransportException("Stremio addon exceeded the redirect limit")
+                throw AddonTransportException(
+                    "Stremio addon exceeded the redirect limit",
+                    retryable = false,
+                )
             }
             val location = response.headers.entries
                 .firstOrNull { (name, _) -> name.equals("Location", ignoreCase = true) }
                 ?.value
                 ?.takeIf(String::isNotBlank)
-                ?: throw AddonTransportException("Stremio addon redirect is missing a destination")
+                ?: throw AddonTransportException(
+                    "Stremio addon redirect is missing a destination",
+                    retryable = false,
+                )
             val nextUrl = AddonUrls.resolveRedirect(currentUrl, location, options.urlOptions)
             if (!AddonUrls.sameOrigin(currentUrl, nextUrl)) currentHeaders = emptyMap()
             currentUrl = nextUrl
         } else {
             if (response.status !in 200..299) {
-                throw AddonTransportException("Stremio addon returned HTTP ${response.status}")
+                throw AddonHttpStatusException(response.status)
             }
             return AddonPayload(currentUrl, response.body.decodeToString(), response.headers)
         }
     }
-    throw AddonTransportException("Stremio addon exceeded the redirect limit")
+    throw AddonTransportException(
+        "Stremio addon exceeded the redirect limit",
+        retryable = false,
+    )
 }
 
 private data class AddonPayload(

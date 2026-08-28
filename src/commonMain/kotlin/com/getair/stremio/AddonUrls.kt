@@ -16,8 +16,6 @@ data class AddonResourceRequest(
     val extra: Map<String, List<String>> = emptyMap(),
 )
 
-class InvalidAddonUrlException(message: String) : IllegalArgumentException(message)
-
 object AddonUrls {
     fun normalizeManifestUrl(input: String, options: AddonUrlOptions = AddonUrlOptions()): String =
         normalize(input, options, requireManifest = true)

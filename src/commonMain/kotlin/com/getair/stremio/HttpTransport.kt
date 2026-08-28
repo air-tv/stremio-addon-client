@@ -6,7 +6,7 @@ import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class AddonHttpRequest(
     val url: String,
@@ -30,22 +30,24 @@ data class AddonHttpResponse(
     val body: ByteArray,
 )
 
-class AddonTransportException(message: String) : IllegalStateException(message)
-
 fun interface AddonHttpTransport {
     suspend fun execute(request: AddonHttpRequest): AddonHttpResponse
 }
 
 class KtorAddonHttpTransport(private val client: HttpClient) : AddonHttpTransport {
     override suspend fun execute(request: AddonHttpRequest): AddonHttpResponse = try {
-        if (request.timeoutMillis > 0) withTimeout(request.timeoutMillis) { executeWithoutTimeout(request) }
-        else executeWithoutTimeout(request)
+        if (request.timeoutMillis > 0) {
+            withTimeoutOrNull(request.timeoutMillis) { executeWithoutTimeout(request) }
+                ?: throw AddonTimeoutException(request.timeoutMillis)
+        } else {
+            executeWithoutTimeout(request)
+        }
     } catch (error: CancellationException) {
         throw error
     } catch (error: AddonTransportException) {
         throw error
-    } catch (_: Throwable) {
-        throw AddonTransportException("Stremio addon request failed")
+    } catch (_: Exception) {
+        throw AddonTransportException("Stremio addon request failed", retryable = true)
     }
 
     private suspend fun executeWithoutTimeout(request: AddonHttpRequest): AddonHttpResponse {
@@ -54,7 +56,7 @@ class KtorAddonHttpTransport(private val client: HttpClient) : AddonHttpTranspor
         }
         val declaredLength = response.headers["Content-Length"]?.toLongOrNull()
         if (declaredLength != null && declaredLength > request.maxResponseBytes) {
-            throw AddonTransportException("Stremio addon response exceeded the configured size limit")
+            throw AddonResponseTooLargeException(request.maxResponseBytes)
         }
         val channel = response.bodyAsChannel()
         val output = BoundedByteAccumulator(request.maxResponseBytes)
@@ -65,7 +67,7 @@ class KtorAddonHttpTransport(private val client: HttpClient) : AddonHttpTranspor
             if (count == 0) continue
             if (!output.append(buffer, count)) {
                 channel.cancel(null)
-                throw AddonTransportException("Stremio addon response exceeded the configured size limit")
+                throw AddonResponseTooLargeException(request.maxResponseBytes)
             }
         }
         return AddonHttpResponse(

@@ -31,7 +31,11 @@ class AddonUrlsTest {
             "https://[::ffff:7f00:1]/manifest.json",
             "https://user:secret@addon.example/manifest.json",
         ).forEach { url ->
-            assertFailsWith<InvalidAddonUrlException> { AddonUrls.normalizeManifestUrl(url) }
+            val failure = assertFailsWith<InvalidAddonUrlException> {
+                AddonUrls.normalizeManifestUrl(url)
+            }
+            assertEquals(AddonFailureKind.InvalidUrl, failure.kind)
+            assertFalse(failure.retryable)
         }
         assertEquals(
             "http://localhost/manifest.json",
