@@ -35,6 +35,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
       - run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
       - run: ./scripts/test-release-package-preflight.sh
       - run: ./gradlew jvmTest jsNodeTest wasmJsNodeTest compileReleaseKotlinAndroid linuxX64Test --max-workers=2
@@ -103,6 +105,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
       - name: Publish Android, JVM, web, and Linux target artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
