@@ -9,68 +9,120 @@ permissions:
   packages: write
 
 jobs:
-  linux:
+  validate:
     if: github.repository == 'get-air/stremio-addon-client' && github.event.release.prerelease == false
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - id: version
+        run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
+
+  linux-targets:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "17"
-      - name: Publish common, Android, JVM, web, and Linux artifacts
+      - run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
+      - run: ./gradlew jvmTest jsNodeTest wasmJsNodeTest compileReleaseKotlinAndroid linuxX64Test --max-workers=2
+      - name: Publish Android, JVM, web, and Linux targets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          test "v$VERSION" = "$GITHUB_REF_NAME"
-          case "$VERSION" in *-SNAPSHOT|*+*) exit 1 ;; esac
-          ./gradlew \
-            publishKotlinMultiplatformPublicationToGitHubPackagesRepository \
-            publishAndroidReleasePublicationToGitHubPackagesRepository \
-            publishJvmPublicationToGitHubPackagesRepository \
-            publishJsPublicationToGitHubPackagesRepository \
-            publishWasmJsPublicationToGitHubPackagesRepository \
-            publishLinuxX64PublicationToGitHubPackagesRepository \
-            -PVERSION_NAME="$VERSION"
+          GITHUB_REF_TYPE: tag
+          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
+        run: >-
+          ./gradlew
+          publishAndroidReleasePublicationToGitHubPackagesRepository
+          publishJvmPublicationToGitHubPackagesRepository
+          publishJsPublicationToGitHubPackagesRepository
+          publishWasmJsPublicationToGitHubPackagesRepository
+          publishLinuxX64PublicationToGitHubPackagesRepository
+          -PVERSION_NAME=${{ needs.validate.outputs.version }}
+          --max-workers=2
 
-  apple:
-    if: github.repository == 'get-air/stremio-addon-client' && github.event.release.prerelease == false
+  apple-targets:
+    needs: validate
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "17"
-      - name: Publish Apple artifacts
+      - run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
+      - run: >-
+          ./gradlew macosX64Test compileKotlinMacosArm64 compileKotlinIosX64
+          compileKotlinIosArm64 compileKotlinIosSimulatorArm64 --max-workers=2
+      - name: Publish Apple targets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          ./gradlew \
-            publishMacosX64PublicationToGitHubPackagesRepository \
-            publishMacosArm64PublicationToGitHubPackagesRepository \
-            publishIosX64PublicationToGitHubPackagesRepository \
-            publishIosArm64PublicationToGitHubPackagesRepository \
-            publishIosSimulatorArm64PublicationToGitHubPackagesRepository \
-            -PVERSION_NAME="$VERSION"
+          GITHUB_REF_TYPE: tag
+          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
+        run: >-
+          ./gradlew
+          publishMacosX64PublicationToGitHubPackagesRepository
+          publishMacosArm64PublicationToGitHubPackagesRepository
+          publishIosX64PublicationToGitHubPackagesRepository
+          publishIosArm64PublicationToGitHubPackagesRepository
+          publishIosSimulatorArm64PublicationToGitHubPackagesRepository
+          -PVERSION_NAME=${{ needs.validate.outputs.version }}
+          --max-workers=2
 
-  windows:
-    if: github.repository == 'get-air/stremio-addon-client' && github.event.release.prerelease == false
+  windows-target:
+    needs: validate
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "17"
-      - name: Publish Windows artifact
+      - run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
+        shell: bash
+      - run: ./gradlew mingwX64Test --max-workers=2
+        shell: bash
+      - name: Publish Windows target
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          ./gradlew publishMingwX64PublicationToGitHubPackagesRepository -PVERSION_NAME="$VERSION"
+          GITHUB_REF_TYPE: tag
+          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
+        run: >-
+          ./gradlew publishMingwX64PublicationToGitHubPackagesRepository
+          -PVERSION_NAME=${{ needs.validate.outputs.version }}
+          --max-workers=2
+
+  root-metadata:
+    needs: [validate, linux-targets, apple-targets, windows-target]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: ./scripts/validate-release-version.sh "${{ github.event.release.tag_name }}"
+      - name: Publish root Kotlin Multiplatform metadata last
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF_TYPE: tag
+          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
+        run: >-
+          ./gradlew publishKotlinMultiplatformPublicationToGitHubPackagesRepository
+          -PVERSION_NAME=${{ needs.validate.outputs.version }}
+          --max-workers=2

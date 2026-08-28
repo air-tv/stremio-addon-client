@@ -13,8 +13,8 @@ jobs:
   typescript-reference:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
           package-manager-cache: false
@@ -22,42 +22,77 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run ci
 
-  common:
+  linux-host:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "17"
-      - run: ./gradlew jvmTest jsNodeTest wasmJsNodeTest
+      - run: ./scripts/validate-release-version.sh v0.0.0
+      - name: Test Linux-owned targets
+        run: >-
+          ./gradlew jvmTest jsNodeTest wasmJsNodeTest compileReleaseKotlinAndroid linuxX64Test
+          --max-workers=2
+      - name: Publish Linux-owned targets to an isolated Maven repository
+        run: >-
+          ./gradlew
+          publishKotlinMultiplatformPublicationToHostTestRepository
+          publishAndroidReleasePublicationToHostTestRepository
+          publishJvmPublicationToHostTestRepository
+          publishJsPublicationToHostTestRepository
+          publishWasmJsPublicationToHostTestRepository
+          publishLinuxX64PublicationToHostTestRepository
+          -PVERSION_NAME=0.0.0
+          -PTEMP_MAVEN_REPOSITORY="$RUNNER_TEMP/maven"
+          --max-workers=2
+      - run: find "$RUNNER_TEMP/maven/com/getair" -type f -name '*.pom' | grep -q .
 
-  android:
-    runs-on: ubuntu-latest
+  apple-host:
+    runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "17"
-      - run: ./gradlew compileReleaseKotlinAndroid
+      - run: ./scripts/validate-release-version.sh v0.0.0
+      - name: Test Apple-owned targets
+        run: >-
+          ./gradlew macosX64Test compileKotlinMacosArm64 compileKotlinIosX64
+          compileKotlinIosArm64 compileKotlinIosSimulatorArm64 --max-workers=2
+      - name: Publish Apple targets to an isolated Maven repository
+        run: >-
+          ./gradlew
+          publishMacosX64PublicationToHostTestRepository
+          publishMacosArm64PublicationToHostTestRepository
+          publishIosX64PublicationToHostTestRepository
+          publishIosArm64PublicationToHostTestRepository
+          publishIosSimulatorArm64PublicationToHostTestRepository
+          -PVERSION_NAME=0.0.0
+          -PTEMP_MAVEN_REPOSITORY="$RUNNER_TEMP/maven"
+          --max-workers=2
+      - run: find "$RUNNER_TEMP/maven/com/getair" -type f -name '*.pom' | grep -q .
 
-  native:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            tasks: linuxX64Test
-          - os: windows-latest
-            tasks: mingwX64Test
-          - os: macos-latest
-            tasks: macosX64Test compileKotlinIosArm64 compileKotlinIosSimulatorArm64
-    runs-on: ${{ matrix.os }}
+  windows-host:
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "17"
-      - run: ./gradlew ${{ matrix.tasks }}
+      - run: ./scripts/validate-release-version.sh v0.0.0
+        shell: bash
+      - run: ./gradlew mingwX64Test --max-workers=2
+        shell: bash
+      - name: Publish Windows target to an isolated Maven repository
+        shell: bash
+        run: >-
+          ./gradlew publishMingwX64PublicationToHostTestRepository
+          -PVERSION_NAME=0.0.0
+          -PTEMP_MAVEN_REPOSITORY="$RUNNER_TEMP/maven"
+          --max-workers=2
+      - run: find "$RUNNER_TEMP/maven/com/getair" -type f -name '*.pom' | grep -q .
+        shell: bash

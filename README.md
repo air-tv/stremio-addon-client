@@ -18,6 +18,36 @@ response data:
 ./scripts/test-live-integration.sh
 ```
 
+## Kotlin dependency from GitHub Packages
+
+GitHub Packages requires authentication even when this repository is public.
+Create a classic personal access token with `read:packages`, keep it outside the
+project, and expose the credentials through environment variables or your user
+Gradle properties. Never commit the token.
+
+```kotlin
+repositories {
+    maven {
+        url = uri("https://maven.pkg.github.com/get-air/stremio-addon-client")
+        credentials {
+            username = providers.environmentVariable("GITHUB_ACTOR").orNull
+            password = providers.environmentVariable("GITHUB_TOKEN").orNull
+        }
+    }
+}
+
+kotlin {
+    sourceSets.commonMain.dependencies {
+        implementation("com.getair:stremio-addon-client:1.2.3")
+    }
+}
+```
+
+For a local machine, `GITHUB_ACTOR` is your GitHub username and `GITHUB_TOKEN`
+is the read-only package token. GitHub Actions consumers can use the workflow's
+built-in `GITHUB_TOKEN` after granting `packages: read`. Workspace development
+continues to use the composite build and does not need package credentials.
+
 [![CI](https://github.com/get-air/stremio-addon-client/actions/workflows/ci.yml/badge.svg)](https://github.com/get-air/stremio-addon-client/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@get-air/stremio-addon-client.svg)](https://www.npmjs.com/package/@get-air/stremio-addon-client)
 
